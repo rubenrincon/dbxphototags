@@ -204,6 +204,7 @@ module.exports.tag = async(req,res,next)=>{
   try{
     lastModified= await store.getValue(config.STORE_LAST_MODIFIED_KEY);
   }catch(error){
+    console.log(error);
     res.write("Error retrieving last modified ... tagging everything");
   }
 

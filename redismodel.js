@@ -1,7 +1,13 @@
+const util = require('util');
 var redis = require("redis"),
 client = redis.createClient();
 
+//using bind as per https://github.com/nodejs/node/issues/13338
+module.exports.saveKey = util.promisify(client.set).bind(client);
 
+module.exports.getValue = util.promisify(client.get).bind(client);
+
+/*
 module.exports.saveKey= (key,value)=>{
   return new Promise(async(resolve,reject)=>{
 	client.set(key, value,(error,res)=>{
@@ -13,9 +19,9 @@ module.exports.saveKey= (key,value)=>{
   	});
   });
 }
+*/
 
-
-module.exports.getValue= (key)=>{
+/*module.exports.getValue= (key)=>{
   return new Promise(async(resolve,reject)=>{
 	client.get(key,(error,res)=>{
   		if(error){
@@ -26,4 +32,4 @@ module.exports.getValue= (key)=>{
   	});
   });
 }
-
+*/
