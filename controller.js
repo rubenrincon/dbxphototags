@@ -1,34 +1,46 @@
+//Dropbox SDK requires this line
+require('isomorphic-fetch'); 
 
 const 
+imgController = require('./imgservices'),
+dbxservices = require('./dbxservices'),
 crypto = require('crypto'),
 config = require('./config'),
-NodeCache = require( "node-cache" ),
-mycache = new NodeCache();
-rp = require('request-promise');
+store = require('./redismodel'),
+rp = require('request-promise'),
+Dropbox = require('dropbox').Dropbox,
+NodeCache = require( "node-cache" );
+
+var mycache = new NodeCache();
+ 
 
 
 module.exports.home = async (req,res,next)=>{    
 
   let token = req.session.token;
-  if(token){
-    try{
 
-      let paths = await getLinksAsync(token); 
+  //If not token, redirect to login
+  if(!token) return res.redirect('/login');
 
-      if(paths.length>0){
-        res.render('gallery', { imgs: paths, layout:false});
-      }else{
-        //if no images, ask user to upload some
-        res.render('empty', {layout:false});
-      }    
+  let dbx = new Dropbox({ accessToken: token });
 
-    }catch(error){
-      return next(new Error("Error getting images from Dropbox"));
-    }
+  try{
 
-  }else{
-    res.redirect('/login');
+    let result = await dbxservices.getTemporaryLinksForFolderAsync(dbx,config.DROPBOX_PHOTOS_FOLDER); 
+
+    let paths = result.temporaryLinks;
+
+    if(paths.length>0){
+      res.render('gallery', { imgs: paths, layout:false});
+    }else{
+      //if no images, ask user to upload some
+      res.render('empty', {layout:false});
+    }    
+
+  }catch(error){
+    return next(new Error("Error getting images from Dropbox"));
   }
+  
 };
 
 
@@ -38,26 +50,14 @@ module.exports.login = (req,res,next)=>{
   let state = crypto.randomBytes(16).toString('hex');
   mycache.set(state, req.sessionID, 600);
 
-  let dbxRedirect= config.DBX_OAUTH_DOMAIN 
-  + config.DBX_OAUTH_PATH 
-  + "?response_type=code&client_id="+config.DBX_APP_KEY
-  + "&redirect_uri="+config.OAUTH_REDIRECT_URL 
-  + "&state="+state;
-  
+  let dbx = new Dropbox({clientId: config.DBX_APP_KEY});
+
+  //get a redirect URL from Dropbox using code authentication
+  let dbxRedirect= dbx.getAuthenticationUrl(config.OAUTH_REDIRECT_URL , state, 'code');
+
   res.redirect(dbxRedirect);
 }
 
-
-module.exports.logout = async (req,res,next)=>{
-  try{
-
-    await regenerateSessionAsync(req);
-    res.redirect("/login");
-
-  }catch(error){
-    return next(new Error('error logging out. '+error.message));
-  }  
-}
 
 
 module.exports.oauthredirect = async (req,res,next)=>{
@@ -73,26 +73,25 @@ module.exports.oauthredirect = async (req,res,next)=>{
     return next(new Error("session expired or invalid state"));
   } 
 
+  let code = req.query.code;
   //Exchange code for token
-  if(req.query.code ){
 
-    let options={
-    url: config.DBX_API_DOMAIN + config.DBX_TOKEN_PATH, 
-        //build query string
-        qs: {'code': req.query.code, 
-        'grant_type': 'authorization_code', 
-        'client_id': config.DBX_APP_KEY, 
-        'client_secret':config.DBX_APP_SECRET,
-        'redirect_uri':config.OAUTH_REDIRECT_URL}, 
-        method: 'POST',
-        json: true }
+  console.log("code="+code);
+  if(code){
 
     try{
 
-      let response = await rp(options);
+      let dbx = new Dropbox({
+        clientId: config.DBX_APP_KEY,
+        clientSecret: config.DBX_APP_SECRET
+      });
+
+      let token = await dbx.getAccessTokenFromCode(config.OAUTH_REDIRECT_URL, code) ;
+      console.log("token="+token);
       
       await regenerateSessionAsync(req);
-      req.session.token = response.access_token;
+      req.session.token = token;
+      console.log("Token="+token);
       
       res.redirect("/");
 
@@ -114,84 +113,147 @@ function regenerateSessionAsync(req){
 }
 
 
-/*Gets temporary links for a set of files in the root folder of the app
-It is a two step process:
-1.  Get a list of all the paths of files in the folder
-2.  Fetch a temporary link for each file in the folder */
-async function getLinksAsync(token){
 
-  //List images from the root of the app folder
-  let result= await listImagePathsAsync(token,'');
-
-  //Get a temporary link for each of those paths returned
-  let temporaryLinkResults= await getTemporaryLinksForPathsAsync(token,result.paths);
-
-  //Construct a new array only with the link field
-  var temporaryLinks = temporaryLinkResults.map(function (entry) {
-    return entry.link;
-  });
-
-  return temporaryLinks;
-}
-
-
-/*
-Returns an object containing an array with the path_lower of each 
-image file and if more files a cursor to continue */
-async function listImagePathsAsync(token,path){
-
-  let options={
-    url: config.DBX_API_DOMAIN + config.DBX_LIST_FOLDER_PATH, 
-    headers:{"Authorization":"Bearer "+token},
-    method: 'POST',
-    json: true ,
-    body: {"path":path}
-  }
-
+module.exports.logout = async (req,res,next)=>{
   try{
-    //Make request to Dropbox to get list of files
-    let result = await rp(options);
 
-    //Filter response to images only
-    let entriesFiltered= result.entries.filter(function(entry){
-      return entry.path_lower.search(/\.(gif|jpg|jpeg|tiff|png)$/i) > -1;
-    });        
-
-    //Get an array from the entries with only the path_lower fields
-    var paths = entriesFiltered.map(function (entry) {
-      return entry.path_lower;
-    });
-
-    //return a cursor only if there are more files in the current folder
-    let response= {};
-    response.paths= paths;
-    if(result.hasmore) response.cursor= result.cursor;        
-    return response;
+    await destroySessionAsync(req);
+    res.redirect("/login");
 
   }catch(error){
-    return next(new Error('error listing folder. '+error.message));
-  }        
-} 
+    return next(new Error('error logging out. '+error.message));
+  }  
+}
 
-
-//Returns an array with temporary links from an array with file paths
-async function getTemporaryLinksForPathsAsync(token,paths){
-
-  var promises = [];
-  let options={
-    url: config.DBX_API_DOMAIN + config.DBX_GET_TEMPORARY_LINK_PATH, 
-    headers:{"Authorization":"Bearer "+token},
-    method: 'POST',
-    json: true
-  }
-  
-  //Create a promise for each path and push it to an array of promises
-  paths.forEach((path_lower)=>{
-    options.body = {"path":path_lower};
-    promises.push(rp(options));
+//Returns a promise that fulfills when a session is destroyed
+function destroySessionAsync(req){
+  return new Promise(async (resolve,reject)=>{
+    //first try to revoke token
+    try{
+      let token = req.session.token;
+      if(token){
+        let dbx = new Dropbox({ accessToken: token });
+        await dbx.authTokenRevoke();
+      }
+    }catch(error){
+      console.log("error revoking token: "+error.message);
+    }  
+    //then destroy the session
+    req.session.destroy((err)=>{
+      err ? reject(err) : resolve();
+    });
   });
+}
 
-  //returns a promise that fullfills once all the promises in the array complete or one fails
-  return Promise.all(promises);
+
+
+module.exports.search = async (req,res,next)=>{    
+
+  let token = req.session.token;
+  //If not token, redirect to login
+  if(!token) return res.redirect('/login');
+
+  let dbx = new Dropbox({ accessToken: token });
+
+  try{
+
+    let personId= await store.getValue(req.params.name);
+    console.log('found '+personId);
+
+    // Get the paths to the files
+    let paths = await dbxservices.searchProperty(dbx,personId);
+
+    console.log("paths to search");
+    console.log(paths);
+
+    if(paths.length>0){
+
+      //Get temporary links for files
+      let temporaryLinks = await dbxservices.getTemporaryLinksForPathsAsync(dbx,paths);
+      res.render('gallery', { imgs: temporaryLinks, layout:false});
+
+    }else{
+      //if no images, ask user to upload some
+      res.render('empty', {layout:false});
+    }    
+
+  }catch(error){
+    console.log(error);
+    return next(new Error("Error getting images from Dropbox"));
+  }
 
 }
+
+
+
+module.exports.tag = async(req,res,next)=>{ 
+
+  let token = req.session.token;
+  //If not token, redirect to login
+  if(!token) return res.redirect('/login');
+
+  let hasmore=true;
+  let cursor=null;
+  let limit =5;
+  let lastModified=null;
+  let dbx = new Dropbox({ accessToken: token });
+  let path = config.DROPBOX_PHOTOS_FOLDER;
+
+
+  //only check for images after a stored timestamp to avoid retagging all images in Azure
+  try{
+    lastModified= await store.getValue(config.STORE_LAST_MODIFIED_KEY);
+  }catch(error){
+    res.write("Error retrieving last modified ... tagging everything");
+  }
+
+  //user can force to retag everything with the parameter tagall=true
+  if(req.query.tagall && req.query.tagall=='true') lastModified=null;
+  if(lastModified)res.write("Tagging images after "+lastModified);
+
+  res.write("\nReading images from "+path +" ...");
+
+
+  while(hasmore){
+
+    try{
+
+      let imgPathsResult= await dbxservices.getTemporaryLinksForFolderAsync(dbx,path,cursor,limit,lastModified);
+      
+      cursor=imgPathsResult.cursor;
+      hasmore=imgPathsResult.hasmore;
+
+      res.write("\nfound "+imgPathsResult.temporaryLinks.length +" images ...");
+
+      //iterate over a list of eligible images in a folder
+      for(let i=0;i<imgPathsResult.temporaryLinks.length;i++){
+
+        //Detect persons on each photo
+        let result = await imgController.detectPersonsInPhotoAsync(config.GROUP_NAME,imgPathsResult.temporaryLinks[i],imgPathsResult.imgPaths[i]);
+        if(!result) continue;
+
+        //Add those persons to the file properties
+        let templateID = await dbxservices.getTemplateIDAsync(dbx);
+        await dbxservices.addPropertiesAsync(dbx,templateID,result.path,result.personIds);
+        res.write("\nAdded "+result.personIds.length+" persons to "+result.path);
+            
+      }
+
+      //if there are more results continue, otherwise store a timestamp for future tag jobs
+      if(!hasmore){
+        let dateIsoString = (new Date()).toISOString();
+        await store.saveKey(config.STORE_LAST_MODIFIED_KEY, dateIsoString);
+        res.write("\n--> Tagging completed !");
+      }
+
+    }catch(error){
+      console.log(error);
+      hasmore=false;
+      res.write("\nError tagging folder: "+error.message);
+    }
+  }
+
+  res.end();
+}
+
+

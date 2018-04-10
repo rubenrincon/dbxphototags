@@ -1,27 +1,21 @@
 const 
-Dropbox = require('dropbox'),
 config = require('./config'),
 template = require ('./properties_template');
 
-var dbx;
 var templateId;
 
 
 
-
 var self = module.exports ={
-
-	initializeDropbox:(token)=>{
-		dbx= new Dropbox({ accessToken: token});
-	},
 
 	/*
 	Returns a promise for a templateId, if it exists locally will return it
 	If no local templateId, will fetch the first one in Dropbox
 	If does not exist in Dropbox, will create a new one
 	*/
-	getTemplateIDAsync: ()=>{
+	getTemplateIDAsync: (dbx)=>{
 		  return new Promise(async(resolve,reject)=>{
+
 		  	try{
 
 		  		if(templateId)return resolve(templateId);
@@ -50,7 +44,7 @@ var self = module.exports ={
 	Adds a set of properties to a specific file
 	If the properties already exist, it will overwrite them
 	*/
-	addPropertiesAsync:(templateId,path,personIds)=>{
+	addPropertiesAsync:(dbx,templateId,path,personIds)=>{
 
 		return new Promise(async (resolve,reject)=>{
 
@@ -115,10 +109,9 @@ var self = module.exports ={
 	Search for a property with a specified personId 
 	returns an array with images
 	*/
-	searchProperty:(personId)=>{
+	searchProperty:(dbx,personId)=>{
 
 		return new Promise(async (resolve,reject)=>{
-
 			try{
 
 				let paths=[];
@@ -172,9 +165,10 @@ var self = module.exports ={
 
 
 /*
-Returns an array with temporary links from an array with file paths
-Only images are returned
-Response will be returned in the following format once the promised is fulfilled
+Returns an array with temporary links from a path. 
+The path parameter should be a folder.
+Only images are returned.
+Response will be returned in the following format once the promised is fulfilled.
 {
 	temporaryLinks: [link1,link2,link3],
 	paths:[path1,path2,path3]
@@ -182,15 +176,13 @@ Response will be returned in the following format once the promised is fulfilled
 
 */
 
-	getTemporaryLinksForFolderAsync:async (path,cursor,limit)=>{
+	getTemporaryLinksForFolderAsync: async (dbx,path,cursor,limit,lastModified)=>{
 
 	  return new Promise(async(resolve,reject)=>{
-
 	  	try{
 
 	  		//Will hold values to return in case promise correctly fullfills
 	  		let resolveValue={};
-
 
 	  		let result=null;
 				if(!cursor){
@@ -199,7 +191,11 @@ Response will be returned in the following format once the promised is fulfilled
 					params.path = path;
 					if(limit) params.limit= limit;
 
+					console.log("params");
+					console.log(params);
+
 					result	= await dbx.filesListFolder(params);
+
 
 				}else{
 
@@ -207,21 +203,33 @@ Response will be returned in the following format once the promised is fulfilled
 				
 				}
 
-				resolveValue.cursor = result.cursor;
+				if(result.cursor) resolveValue.cursor = result.cursor;
 				resolveValue.hasmore= result.has_more;
 
 
 				//Filter response to images only
 		    let entriesFiltered= result.entries.filter(function(entry){
 		      return entry.path_lower.search(/\.(gif|jpg|jpeg|tiff|png)$/i) > -1;
-		    });        
+		    });  
+
+
+		    //filter it to images modified after a specific date
+		    if(lastModified){
+			    entriesFiltered = entriesFiltered.filter(function(entry){
+			      return entry.server_modified > lastModified;
+			    });  
+		    }
 
 		    //Get an array from the entries with only the path_lower fields
 		    let imgPaths = entriesFiltered.map(function (entry) {
 		      return entry.path_lower;
 		    });
 
-		    let temporaryLinks = await self.getTemporaryLinksForPathsAsync(imgPaths);
+
+		    let temporaryLinks = [];
+		    if(imgPaths.length>0){
+		    	temporaryLinks= await self.getTemporaryLinksForPathsAsync(dbx, imgPaths);
+		    }
 
 			  console.log("created "+temporaryLinks.length+ " temporary links");
 
@@ -237,7 +245,8 @@ Response will be returned in the following format once the promised is fulfilled
 	  });
 	},
 
-	getTemporaryLinksForPathsAsync: async (imgPaths)=>{
+	//returns a promise that results with an array of temporary links for images on it
+	getTemporaryLinksForPathsAsync: async (dbx,imgPaths)=>{
 
 	  return new Promise(async(resolve,reject)=>{
 
