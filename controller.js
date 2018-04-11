@@ -14,7 +14,6 @@ NodeCache = require( "node-cache" );
 var mycache = new NodeCache();
  
 
-
 module.exports.home = async (req,res,next)=>{    
 
   let token = req.session.token;
@@ -26,7 +25,7 @@ module.exports.home = async (req,res,next)=>{
 
   try{
 
-    let result = await dbxservices.getTemporaryLinksForFolderAsync(dbx,config.DROPBOX_PHOTOS_FOLDER); 
+    let result = await dbxservices.getTemporaryLinksForFolderAsync(dbx,config.DROPBOX_PHOTOS_FOLDER,null,null,null); 
 
     let paths = result.temporaryLinks;
 
@@ -161,7 +160,7 @@ module.exports.search = async (req,res,next)=>{
     console.log('found '+personId);
 
     // Get the paths to the files
-    let paths = await dbxservices.searchProperty(dbx,personId);
+    let paths = await dbxservices.searchPropertyAsync(dbx,personId);
 
     console.log("paths to search");
     console.log(paths);

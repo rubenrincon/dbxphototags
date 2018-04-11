@@ -51,7 +51,7 @@ module.exports.addPeopleToGroup=  async function(peoplePaths){
 
   		let dbx = new Dropbox({ accessToken: config.DBX_TOKEN });
 
-		  let result = await dbxServices.getTemporaryLinksForFolderAsync(dbx,path);
+		  let result = await dbxServices.getTemporaryLinksForFolderAsync(dbx,path,null,null,null);
 
 		  let person = {}
 		  person.name= peoplePaths[i].substring(peoplePaths[i].lastIndexOf('/')+1);
