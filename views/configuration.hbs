@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script type='text/javascript' src='https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js'></script>
+    <script type='text/javascript' src='/javascripts/config.js'></script>
+    <link rel="stylesheet" href="/stylesheets/config.css">
+</head>
+
+<body>
+    <h1 style="text-align: left;">Configuration</h1>
+    <hr />
+    <div>
+        <h2>Faces</h2>
+        <h4>Stored faces</h4>
+        <div id="face-list">
+            {{#each names}}
+                <li>{{this}}</li>
+            {{/each}}
+        </div>
+            <h4>Add new Face</h4>
+            <p>
+                Path:<input id="input-new-face-path" name="path" type="text" value="/dir" />
+                Search Name:<input id="input-new-face-search-name" name="Search valor" type="text" value="juan" />
+                <button type="button" id="button-new-face">Add</button>
+            </p>
+            <p id="error-adding">Error Adding</p>
+            <p id="success-adding">Success adding user</p>
+        </div>
+    <hr />
+    <div>
+        <h2>Tagging</h2>
+        <p><strong>Tagging folder:&nbsp;&nbsp;</strong>{{path}}</p>
+        <p>&nbsp;</p>
+        <p><strong>last tagging event:</strong></p>
+        <p id="last-modified">{{last_modified}}</p>
+        <p>
+            <button type="button" id="button-tag-partial">Tag new photos</button>
+            <button type="button" id="button-tag-all">Tag all photos</button>
+        </p>
+        <p id="error-tagging">Error tagging</p>
+        <p id="success-tagging">Success tagging photos</p>
+        
+    </div>
+
+</body>
+
+</html>

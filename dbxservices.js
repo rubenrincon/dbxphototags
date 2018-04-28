@@ -98,6 +98,10 @@ async function addProperties(dbx,templateId,path,personIds,callback){
 	    ]
 		}
 
+		console.log("Adding property to file:");
+		console.log(args);
+		console.log(fields);
+
   	let result= await dbx.filePropertiesPropertiesAdd(args);
   	callback();
 
@@ -114,7 +118,13 @@ async function addProperties(dbx,templateId,path,personIds,callback){
 
   		try{
 
+  			console.log("property exist, overwriting");
+
   			await dbx.filePropertiesPropertiesOverwrite(args);
+
+  			console.log("success");
+
+
   			callback();
 
   		}catch(error){

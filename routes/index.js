@@ -14,9 +14,13 @@ router.get('/logout', controller.logout);
 
 router.get('/oauthredirect',controller.oauthredirect);
 
-router.get('/tag', controller.tag);
+router.post('/tag', controller.tag);
+
+router.post('/addface', controller.addface);
 
 router.get('/search/:name', controller.search);
+
+router.get('/settings',controller.settings);
 
 
 module.exports = router;

@@ -9,7 +9,8 @@ config = require('./config'),
 store = require('./redismodel'),
 rp = require('request-promise'),
 Dropbox = require('dropbox').Dropbox,
-NodeCache = require( "node-cache" );
+NodeCache = require( "node-cache" ),
+util = require('util');
 
 var mycache = new NodeCache();
  
@@ -86,7 +87,6 @@ module.exports.oauthredirect = async (req,res,next)=>{
       });
 
       let token = await dbx.getAccessTokenFromCode(config.OAUTH_REDIRECT_URL, code) ;
-      console.log("token="+token);
       
       await regenerateSessionAsync(req);
       req.session.token = token;
@@ -115,10 +115,8 @@ function regenerateSessionAsync(req){
 
 module.exports.logout = async (req,res,next)=>{
   try{
-
     await destroySessionAsync(req);
     res.redirect("/login");
-
   }catch(error){
     return next(new Error('error logging out. '+error.message));
   }  
@@ -156,7 +154,11 @@ module.exports.search = async (req,res,next)=>{
 
   try{
 
-    let personId= await store.getValue(req.params.name);
+    //get Dropbox account info 
+    let account_info = await dbx.usersGetCurrentAccount();
+    account_id = account_info.account_id;
+
+    let personId= await store.getSingleFaceForAccountIDAsync(account_id,req.params.name);
     console.log('found '+personId);
 
     // Get the paths to the files
@@ -194,66 +196,200 @@ module.exports.tag = async(req,res,next)=>{
   let hasmore=true;
   let cursor=null;
   let limit =5;
-  let lastModified=null;
   let dbx = new Dropbox({ accessToken: token });
   let path = config.DROPBOX_PHOTOS_FOLDER;
+  
+
+  let account_id;
+  let group_name;
+  let last_modified;
 
 
-  //only check for images after a stored timestamp to avoid retagging all images in Azure
+  //Retrieve group information, if cannot be obtained return with error
   try{
-    lastModified= await store.getValue(config.STORE_LAST_MODIFIED_KEY);
+
+    //get Dropbox account info 
+    let account_info = await dbx.usersGetCurrentAccount();
+    account_id = account_info.account_id;
+   
+    group_name = await getGroupNameFromAccountIDAsync(account_id);
+
+    //get the last tagging event
+    let settings = await store.getAllUserSettingsAsync(account_id);
+    console.log("settings");
+    console.log(settings);
+    if(settings && settings.last_tag_timestamp) last_modified=settings.last_tag_timestamp;
+
+
   }catch(error){
     console.log(error);
-    res.write("Error retrieving last modified ... tagging everything");
+    res.status(500);
+    res.send("\nError retrieving Azure group: "+error.message);
+    return;
   }
 
-  //user can force to retag everything with the parameter tagall=true
-  if(req.query.tagall && req.query.tagall=='true') lastModified=null;
-  if(lastModified)res.write("Tagging images after "+lastModified);
 
-  res.write("\nReading images from "+path +" ...");
+
+  //user can force to retag everything with the parameter tagall=true
+  if(req.query.tagall && req.query.tagall=='true') last_modified=null;
+  if(last_modified)console.log("Tagging images after "+last_modified);
 
 
   while(hasmore){
 
     try{
 
-      let imgPathsResult= await dbxservices.getTemporaryLinksForFolderAsync(dbx,path,cursor,limit,lastModified);
+      let imgPathsResult= await dbxservices.getTemporaryLinksForFolderAsync(dbx,path,cursor,limit,last_modified);
       
       cursor=imgPathsResult.cursor;
       hasmore=imgPathsResult.hasmore;
 
-      res.write("\nfound "+imgPathsResult.temporaryLinks.length +" images ...");
+      console.log("\nfound "+imgPathsResult.temporaryLinks.length +" images ...");
 
       //iterate over a list of eligible images in a folder
       for(let i=0;i<imgPathsResult.temporaryLinks.length;i++){
 
         //Detect persons on each photo
-        let result = await imgController.detectPersonsInPhotoAsync(config.GROUP_NAME,imgPathsResult.temporaryLinks[i],imgPathsResult.imgPaths[i]);
+        let result = await imgController.detectPersonsInPhotoAsync(group_name,imgPathsResult.temporaryLinks[i],imgPathsResult.imgPaths[i]);
         if(!result) continue;
 
         //Add those persons to the file properties
         let templateID = await dbxservices.getTemplateIDAsync(dbx);
         await dbxservices.addPropertiesAsync(dbx,templateID,result.path,result.personIds);
-        res.write("\nAdded "+result.personIds.length+" persons to "+result.path);
+        console.log("\nAdded "+result.personIds.length+" persons to "+result.path);
             
       }
 
       //if there are more results continue, otherwise store a timestamp for future tag jobs
       if(!hasmore){
         let dateIsoString = (new Date()).toISOString();
-        await store.saveKey(config.STORE_LAST_MODIFIED_KEY, dateIsoString);
-        res.write("\n--> Tagging completed !");
+        
+        await store.saveSingleUserSettingAsync(account_id,"last_tag_timestamp",dateIsoString);
+       // await store.saveKey(config.STORE_LAST_MODIFIED_KEY, dateIsoString);
+        console.log("\n--> Tagging completed !");
+        res.send(dateIsoString);
       }
 
     }catch(error){
       console.log(error);
       hasmore=false;
-      res.write("\nError tagging folder: "+error.message);
+      res.status(500);
+      res.send("\nError tagging folder: "+error.message);
     }
   }
-
-  res.end();
 }
 
 
+module.exports.settings = async (req,res,next)=>{ 
+
+  let token = req.session.token;
+
+  //If not token, redirect to login
+  if(!token) return res.redirect('/login');
+
+  let dbx = new Dropbox({ accessToken: token });
+
+  try{
+
+    let account_info = await dbx.usersGetCurrentAccount();
+    let account_id = account_info.account_id;
+
+    console.log("Dropbox account_id="+account_id);
+
+    let settings = await store.getAllUserSettingsAsync(account_id);
+
+    let return_data ={}
+
+    if(settings){
+
+     // let faces = await store.getFacesForAccountIDAsync(account_id);
+     // let face_names = [];
+     // if(faces){
+         // get face_names
+
+      //}
+
+    //  return_data.names = face_names;
+      return_data.last_modified = settings.last_tag_timestamp;
+      return_data.path= settings.photos_path;
+
+    }
+
+    return_data.layout = false;
+    res.render('configuration', return_data);
+
+
+  }catch(error){
+    console.log(error);
+    res.next(new Error("error reading configuration"));
+
+  }
+
+}
+
+
+
+module.exports.addface = async (req,res,next)=>{ 
+
+
+  let token = req.session.token;
+
+  //If not token, redirect to login
+  if(!token) return res.redirect('/login');
+
+  try{
+
+      let dbx = new Dropbox({ accessToken: token });
+
+      let search_name = req.body.search_name;
+      let path = req.body.path;
+
+      //get Dropbox account info 
+      let account_info = await dbx.usersGetCurrentAccount();
+      account_id = account_info.account_id;
+
+      let group_name = await getGroupNameFromAccountIDAsync(account_id);
+
+      let result = await dbxservices.getTemporaryLinksForFolderAsync(dbx,path,null,null,null);
+
+      let faceUrls= result.temporaryLinks;
+
+      //Add person to the group
+      result = await imgController.addPersonToPersonGroupAsync(group_name,search_name);
+      let personId= result.personId;
+
+      //Add faces to the person
+      let facesAddedCount = await imgController.addFacesToPersonAsync(group_name, personId, faceUrls);
+
+      await imgController.trainPersonGroupAsync(group_name);
+
+      //save person in memory
+      await store.saveSingleFaceForUserAsync(account_id,personId,search_name);
+
+      console.log(facesAddedCount + "faces added to "+search_name);
+      res.send(search_name);
+
+  }catch(error){
+    res.status(500);
+    res.send("\nError adding face: "+error.message);
+  }
+
+}
+
+
+const getGroupNameFromAccountIDAsync = util.promisify(getGroupNameFromAccountID);
+async function getGroupNameFromAccountID(account_id,callback){
+  try{
+
+    //If group has not been created in Azure, create it
+    let settings = await store.getAllUserSettingsAsync(account_id);
+    if(!settings || !settings.azure_group_created){
+      await imgController.createGroupAsync(group_name,group_name);
+      await store.saveSingleUserSettingAsync(account_id,"azure_group_created",true);
+    }
+    let group_name=account_id.substring(5).toLowerCase();
+    callback(null,group_name);
+  }catch(error){
+    callback(new Error("could not create or retrieve Azure group: "+error.message));
+  }
+}
