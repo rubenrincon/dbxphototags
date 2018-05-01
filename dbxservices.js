@@ -1,6 +1,7 @@
 const 
 config = require('./config'),
 template = require ('./properties_template'),
+store = require('./redismodel'),
 util = require('util');
 
 
@@ -141,23 +142,23 @@ async function addProperties(dbx,templateId,path,personIds,callback){
 
 
 /*
-Returns a templateId, will fetch the first one in Dropbox
-If does not exist in Dropbox, will create a new one
+Returns a templateId from local storage or gets a new from Dropbox
 */
-async function getTemplateID(dbx,callback){
+async function getTemplateID(dbx,account_id,callback){
 	try{
 
-		//If no templateId stored in memory get it from Dropbox
-		let result = await dbx.filePropertiesTemplatesListForUser();
+		let template_id;
+    let settings = await store.getAllUserSettingsAsync(account_id);
+    if(!settings || !settings.dbx_template_id){
 
-  	if(result.template_ids && result.template_ids.length>0){
-  		return callback(null, result.template_ids[0]);
-  	} else{
+    	let result = await dbx.filePropertiesTemplatesAddForUser(template.people_template);
+    	template_id= result.template_id;
+    	await store.saveSingleUserSettingAsync(account_id,"dbx_template_id",template_id);
 
-  		//If no template already attached to user, then attach one
-  		result = await dbx.filePropertiesTemplatesAddForUser(template.people_template);
-  		return callback(null, result.template_id);
-  	}
+    }else{
+    	template_id= settings.dbx_template_id;
+    }
+    return callback(null, template_id);
 	}catch(error){
 		let message= error.error_summary?error.error_summary:error.message;
 		callback(new Error("couldnt get templateID. "+message));

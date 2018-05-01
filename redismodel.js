@@ -3,14 +3,14 @@ var redis = require("redis"),
 client = redis.createClient();
 
 
-
 /*
 settings are keypars such as:
 {
   account_id: "account"
   photos_path: "path",
-  azure_group_created: "true/false"
+  azure_group: "group"
   last_tag_timestamp: "date_last_modified"
+  dbx_template_id: "template_id"
 }
 */
 
@@ -33,8 +33,7 @@ function getAllUserSettings(account_id,callback){
 
 /*face keypar structure
 {
-  faceId: "face_search_name"
-  faceId: "face_search_name"
+  face_search_name: faceId
 }
 */
 
@@ -55,5 +54,11 @@ function getSingleFaceForAccountID(account_id,search_name,callback){
 module.exports.getAllFacesForAccountIDAsync = util.promisify(getAllFacesForAccountID);
 function getAllFacesForAccountID(account_id,callback){
   client.hgetall("faces:"+account_id,callback);
+}
+
+
+module.exports.getAllFaceNamesForAccountIDAsync = util.promisify(getAllFaceNamesForAccountID);
+function getAllFaceNamesForAccountID (account_id,callback){
+  client.hkeys("faces:"+account_id,callback);
 }
 
