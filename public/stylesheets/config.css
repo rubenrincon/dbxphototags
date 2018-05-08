@@ -1,4 +1,4 @@
-#error-adding{
+#error-faces{
 	display: none;
 }
 
@@ -6,10 +6,18 @@
 	display: none;
 }
 
-#success-adding{
+#success-faces{
 	display: none;
 }
 
 #success-tagging{
 	display: none;
+}
+
+.error{
+	color: red;
+}
+
+.success{
+	color: green;
 }

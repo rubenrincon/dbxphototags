@@ -24,22 +24,21 @@
                 Search Name:<input id="input-new-face-search-name" name="Search valor" type="text" value="juan" />
                 <button type="button" id="button-new-face">Add</button>
             </p>
-            <p id="error-adding">Error Adding</p>
-            <p id="success-adding">Success adding user</p>
+            <p id="faces-message"></p>
         </div>
     <hr />
     <div>
         <h2>Tagging</h2>
-        <p><strong>Tagging folder:&nbsp;&nbsp;</strong>{{path}}</p>
-        <p>&nbsp;</p>
+        Photos Folder:<input id="input-photos-path"  type="text" value={{path}} />
+        <button type="button" id="button-change-photos-path">change</button>
+
         <p><strong>last tagging event:</strong></p>
         <p id="last-modified">{{last_modified}}</p>
         <p>
             <button type="button" id="button-tag-partial">Tag new photos</button>
             <button type="button" id="button-tag-all">Tag all photos</button>
         </p>
-        <p id="error-tagging">Error tagging</p>
-        <p id="success-tagging">Success tagging photos</p>
+        <p id="tagging-message"></p>
         
     </div>
 

@@ -5,9 +5,22 @@ const
 crypto = require('crypto'),
 config = require('./config'),
 Dropbox = require('dropbox').Dropbox,
+store = require('./redismodel'),
 NodeCache = require( "node-cache" );
 
 var mycache = new NodeCache();
+
+
+
+module.exports.home = async (req,res,next)=>{
+  let token = req.session.token;
+  if(token){
+    res.redirect('/gallery'); 
+  }else{
+    res.redirect('/login');  
+  }
+} 
+
 
 
 module.exports.login = (req,res,next)=>{
@@ -53,15 +66,27 @@ module.exports.oauthredirect = async (req,res,next)=>{
       });
 
       let token = await dbx.getAccessTokenFromCode(config.OAUTH_REDIRECT_URL, code) ;
-      
+      await dbx.setAccessToken(token);
+      let account_info = await dbx.usersGetCurrentAccount();
+      account_id = account_info.account_id;
+
+      console.log(account_id);
+
+      //if no settings found reset 
+      let settings = await store.getAllUserSettingsAsync(account_id);
+      if(!settings) await store.resetSettingsAsync(account_id);
+  
+      //store both token and account_id on a new session
       await regenerateSessionAsync(req);
       req.session.token = token;
-      console.log("Token="+token);
+      req.session.account_id= account_id;
+
       
       res.redirect("/");
 
     }catch(error){
-      return next(new Error('error getting token. '+error.message));
+      console.log(error);
+      return next(new Error('error authenticating. '+error.message));
     }        
   }
 }

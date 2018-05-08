@@ -1,56 +1,95 @@
 $(function() {
 
-	$( "#button-new-face").click(function() {
-		var path = $("#input-new-face-path").val();
-		var search_name = $("#input-new-face-search-name").val();
-		makeRequest("/addface",{path:path,search_name: search_name},$("#success-adding"),$("#error-adding"),
-			function(error,data){
-			if(data) $("#face-list").append($("<li>").text(data));
-		});
-	});
+	//Adding a new face actions
+	$( "#button-new-face").click( 
+		()=> {
+			let path = $("#input-new-face-path").val();
+			let search_name = $("#input-new-face-search-name").val();
 
-	$( "#button-tag-all").click(function() {
-		makeRequest("/tag?tagall=true",null,$('#success-tagging'),$('#error-tagging'),
-		function(error,data){
-			$("#last-modified").text(data);
-		});
-	});
+			let data={
+				event: 'add_face',
+				search_name: search_name,
+				path: path
+			}
 
-	$( "#button-tag-partial").click(function() {
-		makeRequest("/tag",null,$('#success-tagging'),$('#error-tagging'),
-			function(error,data){
-			$("#last-modified").text(data);
+			updateSettings(data,
+				(error,response)=>{
+					showAndHideMessage(error,$('#faces-message'),"Success adding face");
+					if(!error && response) $("#face-list").append($("<li>").text(response));
+			});
 		});
-	});
 
+
+	//Updating photos path
+	$("#button-change-photos-path").click(
+		()=>{
+			let path = $("#input-photos-path").val();
+			let data={
+				event: 'update_path',
+				path: path
+			}
+
+			updateSettings(data,
+				(error,response)=>{
+					showAndHideMessage(error,$('#tagging-message'),"Success changing path");
+			});
+		});
+
+	//Tagging pictures actions
+	$( "#button-tag-all").click(
+		()=>{
+			tag('tag_all');
+		});
+
+	$( "#button-tag-partial").click(
+		()=>{
+			tag('tag_partial');
+		});
 });
 
+function tag(tagging_type){
+	let data={
+		event: tagging_type
+	}
 
-/*
-Makes a post request
-If the call is successful will display a success message given by success_object
-If the call fails, will display the returned error using the error_object
-If callback is given, will pass on the data received or the error received
-*/
-function makeRequest(url, body, success_object,error_object,callback){
+	updateSettings(data,
+		(error,response)=>{
+			showAndHideMessage(error,$('#tagging-message'),"Success tagging photos");
+			if(!error && response) $("#last-modified").text(response);
+
+		});
+}
+
+function updateSettings(data,callback){
 	$('button').prop('disabled', true);
-	$.post(url, body, function(data){ 
-		showAndHide(success_object);
-		if(callback)callback(null,data);
-	})
-	.fail(function(error) { 
-		error_object.text(error.responseText);
-		showAndHide(error_object);
-		if(callback)callback(error);
-	})
-	.always(function(){
+	
+	$.ajax({
+   
+   url: '/settings',
+   type: 'PUT',
+   data: data,
+   success: (response)=>{
+   	callback(null,response);
+   },
+   error: (jqXHR)=>{
+   	callback(new Error("Couldn't update settings: "+jqXHR.responseText));
+   },
+   complete: (jqXHR,textStatus)=>{
 		$('button').prop('disabled', false);
+   }
 	});
 }
 
-function showAndHide(object){
+function showAndHideMessage(error, object, success_message){
+
+	let message = error?error.message:success_message;
+
+	//Display message as an error or success
+	object.text(message);
+	let attr_class = error? 'error':'success';
+	object.attr('class', attr_class);
+
+	//show and hide for 5 seconds
 	object.show();
 	setTimeout(function() { object.hide(); }, 5000);
 }
-
-
