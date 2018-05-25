@@ -6,20 +6,11 @@ crypto = require('crypto'),
 config = require('./config'),
 Dropbox = require('dropbox').Dropbox,
 store = require('./redismodel'),
+util = require('util'),
 NodeCache = require( "node-cache" );
 
 var mycache = new NodeCache();
 
-
-
-module.exports.home = async (req,res,next)=>{
-  let token = req.session.token;
-  if(token){
-    res.redirect('/gallery'); 
-  }else{
-    res.redirect('/login');  
-  }
-} 
 
 
 
@@ -70,8 +61,6 @@ module.exports.oauthredirect = async (req,res,next)=>{
       let account_info = await dbx.usersGetCurrentAccount();
       account_id = account_info.account_id;
 
-      console.log(account_id);
-
       //if no settings found reset 
       let settings = await store.getAllUserSettingsAsync(account_id);
       if(!settings) await store.resetSettingsAsync(account_id);
@@ -90,7 +79,6 @@ module.exports.oauthredirect = async (req,res,next)=>{
     }        
   }
 }
-
 
 //Returns a promise that fulfills when a new session is created
 function regenerateSessionAsync(req){

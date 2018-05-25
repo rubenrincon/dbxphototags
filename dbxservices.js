@@ -5,17 +5,37 @@ store = require('./redismodel'),
 util = require('util');
 
 
-module.exports.getTemporaryLinksForFolderAsync = util.promisify(getTemporaryLinksForFolder);
-var getTemporaryLinksForPathsAsync = module.exports.getTemporaryLinksForPathsAsync = util.promisify(getTemporaryLinksForPaths);
+/*
+Returns a templateId from local storage or gets a new one from Dropbox
+*/
 module.exports.getTemplateIDAsync = util.promisify(getTemplateID);
-module.exports.addPropertiesAsync = util.promisify(addProperties);
-module.exports.searchPropertyAsync = util.promisify(searchProperty);
+async function getTemplateID(dbx,account_id,callback){
+	try{
+		let template_id;
+		let settings = await store.getAllUserSettingsAsync(account_id);
+
+		if(!settings || !settings.dbx_template_id){
+
+			let result = await dbx.filePropertiesTemplatesAddForUser(template.people_template);
+			template_id= result.template_id;
+			await store.saveSingleUserSettingAsync(account_id,"dbx_template_id",template_id);
+
+		}else{
+			template_id= settings.dbx_template_id;
+		}
+		return callback(null, template_id);
+	}catch(error){
+		let message= error.error_summary?error.error_summary:error.message;
+		callback(new Error("couldnt get templateID. "+message));
+	}
+}
 
 
 /*
 Search for a property with a specified personId 
-returns an array with images
+returns an array with image paths, if not found, the array is empty
 */
+module.exports.searchPropertyAsync = util.promisify(searchProperty);
 async function searchProperty(dbx,personId,callback){
 
 	try{
@@ -23,17 +43,17 @@ async function searchProperty(dbx,personId,callback){
 		let paths=[];
 
 		let query={
-	    "queries": [
-	        {
-	            "query": personId,
-	            "mode": {
-	                ".tag": "field_name",
-	                "field_name": "person1"
-	            },
-	            "logical_operator": "or_operator"
-	        }
-	    ],
-	    "template_filter": "filter_none"
+			"queries": [
+				{
+					"query": personId,
+					"mode": {
+						".tag": "field_name",
+						"field_name": "person1"
+					},
+					"logical_operator": "or_operator"
+				}
+			],
+			"template_filter": "filter_none"
 		}
 
 		for(let i=0;i<template.people_template.fields.length;i++){
@@ -56,16 +76,11 @@ async function searchProperty(dbx,personId,callback){
 			  paths = paths.concat(resultPaths);
 			}
 		}
-
-		console.log("search result");
-		console.log(paths);
 		callback(null,paths);
-
 	}catch(error){
 		let message= error.error.error_summary?error.error.error_summary:error.message;
   	callback(new Error("Error searching for person. "+ message));
 	}
-
 }
 
 
@@ -73,30 +88,29 @@ async function searchProperty(dbx,personId,callback){
 Adds a set of properties to a specific file
 If the properties already exist, it will overwrite them
 */
+module.exports.addPropertiesAsync = util.promisify(addProperties);
 async function addProperties(dbx,templateId,path,personIds,callback){
 
 	let args =null;
-  try{
+  	try{
 
 		//construct array with persons found according to template
 		let fields=[];
 		for(let j=0;j<personIds.length;j++){
 			fields.push(
 				{
-					'name': 'person'+(j+1),
-				  'value':personIds[j]
+				'name': 'person'+(j+1),
+				'value':personIds[j]
 				}
 			);
 		}
 
 		args= {
-	    "path": path,
-	    "property_groups": [
-        {
-          "template_id": templateId,
-          "fields": fields
-        }
-	    ]
+			"path": path,
+			"property_groups": [{
+				"template_id": templateId,
+				"fields": fields
+			}]
 		}
 
 		console.log("Adding property to file:");
@@ -109,7 +123,9 @@ async function addProperties(dbx,templateId,path,personIds,callback){
 
   }catch(error){
 
-  	let tag=null;
+	  let tag=null;
+	
+	//if error from Dropbox, get the .tag field
   	if(error.error&&error.error.error && error.error.error['.tag']){
   		tag= error.error.error['.tag'];
   	}
@@ -120,66 +136,33 @@ async function addProperties(dbx,templateId,path,personIds,callback){
   		try{
 
   			console.log("property exist, overwriting");
-
   			await dbx.filePropertiesPropertiesOverwrite(args);
-
-  			console.log("success");
-
-
   			callback();
 
   		}catch(error){
-  			let message= error.error.error_summary?error.error.error_summary:error.message;
+  			let message= (error.error && error.error.error_summary)?error.error.error_summary:error.message;
   			callback(new Error("Error overwriting properties. "+ message))
   		}
   	}else{
-  		let message= error.error.error_summary?error.error.error_summary:error.message;
+  		let message= (error.error && error.error.error_summary)?error.error.error_summary:error.message;
   		callback(new Error("Error adding properties to user. "+ message));
   	}
   }
 }
 
 
-
-/*
-Returns a templateId from local storage or gets a new from Dropbox
-*/
-async function getTemplateID(dbx,account_id,callback){
-	try{
-
-		let template_id;
-    let settings = await store.getAllUserSettingsAsync(account_id);
-    if(!settings || !settings.dbx_template_id){
-
-    	let result = await dbx.filePropertiesTemplatesAddForUser(template.people_template);
-    	template_id= result.template_id;
-    	await store.saveSingleUserSettingAsync(account_id,"dbx_template_id",template_id);
-
-    }else{
-    	template_id= settings.dbx_template_id;
-    }
-    return callback(null, template_id);
-	}catch(error){
-		let message= error.error_summary?error.error_summary:error.message;
-		callback(new Error("couldnt get templateID. "+message));
-	}
-}
-
-
-
 /*
 Returns an array with temporary links from a path. 
 The path parameter should be a folder.
 Only images are returned.
+Any call to this method should pass the complete 5 arguments as promisify will make the callback the 6th argument
 Response will be returned in the following format.
-Any call to this method should pass the 5 arguments as promisify will make the callback the 6th
 {
 	temporaryLinks: [link1,link2,link3],
 	paths:[path1,path2,path3]
 }
-
 */
-
+module.exports.getTemporaryLinksForFolderAsync = util.promisify(getTemporaryLinksForFolder);
 async function	getTemporaryLinksForFolder(dbx,path,cursor,limit,lastModified,callback){
 
   	try{
@@ -192,17 +175,10 @@ async function	getTemporaryLinksForFolder(dbx,path,cursor,limit,lastModified,cal
 				let params ={};
 				params.path = path;
 				if(limit) params.limit= limit;
-
-				console.log("params");
-				console.log(params);
-
 				result	= await dbx.filesListFolder(params);
 
-
 			}else{
-
 				result = await dbx.filesListFolderContinue({'cursor':cursor});
-			
 			}
 
 			if(result.cursor) resolveValue.cursor = result.cursor;
@@ -245,7 +221,8 @@ async function	getTemporaryLinksForFolder(dbx,path,cursor,limit,lastModified,cal
 		}
 	}
 
-	//returns an array of temporary links for images in the imgPaths array
+//returns an array of temporary links for images in the imgPaths array
+var getTemporaryLinksForPathsAsync = module.exports.getTemporaryLinksForPathsAsync = util.promisify(getTemporaryLinksForPaths);
 async function	getTemporaryLinksForPaths(dbx,imgPaths,callback){
 
 	try{

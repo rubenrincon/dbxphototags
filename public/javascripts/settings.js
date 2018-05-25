@@ -1,10 +1,28 @@
 $(function() {
 
+	//logic to hide and show the gallery-list and the settings 
+	$("#settings").hide();
+	$("#button-settings").click(
+		()=>{
+			$("#settings").show();
+			$("#gallery-list").hide();
+		}
+	);
+	$("#button-gallery-list").click(
+		()=>{
+			$("#settings").hide();
+			$("#gallery-list").show();
+		}
+	);
+
 	//Adding a new face actions
 	$( "#button-new-face").click( 
 		()=> {
 			let path = $("#input-new-face-path").val();
 			let search_name = $("#input-new-face-search-name").val();
+
+			//if any empty field, display error message
+			if(!path || !search_name) return showAndHideMessage(new Error('correct any empty fields'),$('#faces-message'));
 
 			let data={
 				event: 'add_face',
@@ -24,6 +42,10 @@ $(function() {
 	$("#button-change-photos-path").click(
 		()=>{
 			let path = $("#input-photos-path").val();
+
+			//if any empty field, display error message
+			if(!path) return showAndHideMessage(new Error('correct any empty fields'),$('#change-path-message'));
+
 			let data={
 				event: 'update_path',
 				path: path
@@ -31,7 +53,7 @@ $(function() {
 
 			updateSettings(data,
 				(error,response)=>{
-					showAndHideMessage(error,$('#tagging-message'),"Success changing path");
+					showAndHideMessage(error,$('#change-path-message'),"Success changing path");
 			});
 		});
 
@@ -86,10 +108,10 @@ function showAndHideMessage(error, object, success_message){
 
 	//Display message as an error or success
 	object.text(message);
-	let attr_class = error? 'error':'success';
+	let attr_class = error? 'alert alert-danger':'alert alert-success';
 	object.attr('class', attr_class);
 
 	//show and hide for 5 seconds
 	object.show();
-	setTimeout(function() { object.hide(); }, 5000);
+	setTimeout(function() { object.hide(); }, 7000);
 }

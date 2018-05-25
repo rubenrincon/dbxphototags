@@ -10,38 +10,10 @@ Dropbox = require('dropbox').Dropbox,
 util = require('util');
 
 
-
-module.exports.getSettings = async (req,res,next)=>{ 
-
-  let token = req.session.token;
-  if(!token) return res.redirect('/login');
-
-  try{
-
-    let account_id = req.session.account_id;
-    let settings = await store.getAllUserSettingsAsync(account_id);
-
-    let return_data ={}
-    return_data.names = await store.getAllFaceNamesForAccountIDAsync(account_id);
-    return_data.last_modified = settings.last_tag_timestamp;
-    return_data.path= settings.photos_path;
-    return_data.layout = false;
-
-    res.render('configuration', return_data);
-
-  }catch(error){
-    console.log(error);
-    res.next(new Error("error reading configuration"));
-  }
-}
-
-
-
 module.exports.updateSettings = async(req,res,next)=>{ 
 
-  let token = req.session.token;
   //If not token, redirect to login
-  if(!token){
+  if(!req.session.token){
       res.status(401);
       res.send("Couldn't identify user, login again");
       return;

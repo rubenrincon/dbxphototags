@@ -6,6 +6,29 @@ dbxservices = require('./dbxservices'),
 config = require('./config'),
 store = require('./redismodel'),
 Dropbox = require('dropbox').Dropbox;
+
+
+module.exports.home = async (req,res,next)=>{
+  if(!req.session.token) return res.redirect('/login');
+  try{
+
+    let account_id = req.session.account_id;
+    let settings = await store.getAllUserSettingsAsync(account_id);
+
+    let return_data ={}
+    return_data.names = await store.getAllFaceNamesForAccountIDAsync(account_id);
+    return_data.last_modified = settings.last_tag_timestamp;
+    return_data.path= settings.photos_path;
+    return_data.layout = false;
+
+    res.render('index', return_data);
+
+  }catch(error){
+    console.log(error);
+    res.next(new Error("error reading settings"));
+  }
+} 
+
  
 module.exports.gallery = async (req,res,next)=>{    
 

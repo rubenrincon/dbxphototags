@@ -1,2 +1,114 @@
-<h1>{{title}}</h1>
-<p>Welcome to {{title}}</p>
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  <script type='text/javascript' src='/javascripts/settings.js'></script>
+</head>
+
+<body>
+    <div class="jumbotron text-center">
+        <h2>Tag my photos</h2>
+        <p>Select any option below</p>
+    </div>
+
+    <!-- Gallery list -->
+
+    <div id="gallery-list" class="panel panel-default">
+        <div class="panel-heading">
+            <h4 class="panel-title">Gallery</h4>
+        </div>
+
+        <div class="panel-body">
+            <ul id="face-list" class="list-group">
+                <li class="list-group-item"><a href="/gallery">All Photos</a></li>
+                {{#each names}}
+                    <li class="list-group-item"><a href="/gallery/{{this}}">{{this}}</a></li>
+                {{/each}}
+            </ul>
+        </div>
+        <button id="button-settings" type="button" class="btn btn-link">Settings</button>
+    </div>
+
+
+    <!-- Settings part  -->
+
+    <div id="settings" class="panel-group">
+
+        <!-- Add a new face  -->
+
+        <div class="panel panel-default">
+            <div class="panel-heading">
+            <h4 class="panel-title">
+                <a data-toggle="collapse" href="#collapse1">Add new faces</a>
+            </h4>
+            </div>
+            <div id="collapse1" class="panel-collapse collapse">
+            <div class="panel-body">
+                <p><label>Path</label><input id="input-new-face-path" name="path" type="text" value="/dir" class="form-control"/></p>
+                <p><label>Search name</label><input id="input-new-face-search-name" name="Search valor" type="text" value="juan" class="form-control"/></p>
+                <p><button type="button" id="button-new-face" class="btn btn-primary">Add</button></p>
+                <p id="faces-message"></p>
+            </div>
+            </div>
+        </div>
+
+        <!-- Change photos path  -->
+
+        <div class="panel panel-default">
+            <div class="panel-heading">
+            <h4 class="panel-title">
+                <a data-toggle="collapse" href="#collapse2">Change photos path</a>
+            </h4>
+            </div>
+            <div id="collapse2" class="panel-collapse collapse">
+            <div class="panel-body">
+                <label>Photos Folder </label> <input id="input-photos-path"  type="text" value={{path}} />
+                <button type="button" id="button-change-photos-path" class="btn btn-primary">change</button>
+                <p id="change-path-message"></p> 
+            </div>
+            </div>
+        </div>
+
+        <!-- Tag photos -->
+
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h4 class="panel-title">
+                <a data-toggle="collapse" href="#collapse3">Tag new photos</a>
+                </h4>
+            </div>
+            <div id="collapse3" class="panel-collapse collapse">
+                <div class="panel-body">
+                <p><label>last tagging event:</label><span id="last-modified">{{last_modified}}</span></p>
+                <p><button type="button" id="button-tag-partial" class="btn btn-primary">Tag new photos</button></p>
+                <p><button type="button" id="button-tag-all" class="btn btn-primary">Tag all photos</button></p>
+                <p id="tagging-message"></p> 
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Logout -->
+
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h4 class="panel-title">
+                <a data-toggle="collapse" href="#collapse4">Logout Dropbox</a>
+                </h4>
+            </div>
+            <div id="collapse4" class="panel-collapse collapse">
+                <div class="panel-body">
+                    <a href="/logout">Logout Dropbox</a>
+                </div>
+            </div>
+        </div>
+
+    <button id="button-gallery-list" type="button" class="btn btn-link">Back</button>
+    </div>
+
+</body>
+</html>

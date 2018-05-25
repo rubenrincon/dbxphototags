@@ -24,11 +24,12 @@ app.use(helmet());
 app.use(helmet.contentSecurityPolicy({
   directives: {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "'unsafe-inline'","https://ajax.googleapis.com/"],
-    styleSrc: ["'self'","'unsafe-inline'"], 
-    imgSrc: ["'self'","https://dl.dropboxusercontent.com"],  
+    scriptSrc: ["'self'", "'unsafe-inline'","https://ajax.googleapis.com/",'maxcdn.bootstrapcdn.com'],
+    styleSrc: ["'self'","'unsafe-inline'",'maxcdn.bootstrapcdn.com'], 
+    imgSrc: ["'self'","https://dl.dropboxusercontent.com/"],  
     mediaSrc: ["'none'"],  
-    frameSrc: ["'none'"]  
+    frameSrc: ["'none'"],
+    fontSrc: ["'self'",'maxcdn.bootstrapcdn.com']
   },
 
     // Set to true if you want to blindly set all headers: Content-Security-Policy, 
