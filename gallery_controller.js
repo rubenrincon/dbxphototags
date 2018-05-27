@@ -32,6 +32,7 @@ module.exports.home = async (req,res,next)=>{
  
 module.exports.gallery = async (req,res,next)=>{    
 
+  let photos_path;
   let token = req.session.token;
 
   //If not token, redirect to login
@@ -48,7 +49,7 @@ module.exports.gallery = async (req,res,next)=>{
 
     if(!req.params.name){
       let settings = await store.getAllUserSettingsAsync(account_id);  
-      let photos_path = (settings && settings.photos_path)? settings.photos_path:config.DROPBOX_PHOTOS_FOLDER;
+      photos_path = settings.photos_path;
       let result = await dbxservices.getTemporaryLinksForFolderAsync(dbx,photos_path,null,null,null); 
  
       tmp_links_paths = result.temporaryLinks;
@@ -63,13 +64,16 @@ module.exports.gallery = async (req,res,next)=>{
       res.render('gallery', { imgs: tmp_links_paths, layout:false});
     }else{
       //if no images, ask user to upload some
-      res.render('empty', {layout:false});
+      return next(new Error("No images found in the "+photos_path+" folder"));
     }    
 
   }catch(error){
-    console.log(error);
-    let message= error.error_summary?error.error_summary:error.message;
-    return next(new Error("Error getting images from Dropbox: "+message));
+    let message;
+    if(error.message.indexOf('path/not_found/')){
+      message= "The folder "+ photos_path +" does not exist on your Dropbox, create it and upload some images, or change the path using the Settings";
+    }else{
+      message= "Error getting images from Dropbox: "+error.message;
+    }
+    return next(new Error(message));
   }
- 
 }

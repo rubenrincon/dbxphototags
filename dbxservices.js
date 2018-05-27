@@ -217,7 +217,8 @@ async function	getTemporaryLinksForFolder(dbx,path,cursor,limit,lastModified,cal
 
 		}catch(error){
 			console.log(error);
-			callback(new Error("couldnt get temporary links. "+error.message));
+			let message= (error.error && error.error.error_summary)?error.error.error_summary:error.message;
+			callback(new Error("couldnt get temporary links. "+message));
 		}
 	}
 

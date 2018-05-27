@@ -54,6 +54,7 @@ $(function() {
 			updateSettings(data,
 				(error,response)=>{
 					showAndHideMessage(error,$('#change-path-message'),"Success changing path");
+					if(!error)$("#photos-path").text(path);
 			});
 		});
 
